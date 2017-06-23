@@ -102,30 +102,41 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          vector<double> ptsx_car;
-          vector<double> ptsy_car;
+          Eigen::VectorXd pts_x_car(ptsx.size());
+          Eigen::VectorXd pts_y_car(ptsy.size());
 
           for (int i = 0; i < ptsx.size(); ++i) {
-            double x_diff = (ptsx[i] - px);
-            double y_diff = (ptsy[i] - py);
             double mag = sqrt(square(ptsx[i] - px) + square(ptsy[i] - py));
             double theta = atan2(ptsy[i] - py, ptsx[i] - px);
 
             double x_car = mag * cos(theta - psi);
             double y_car = mag * sin(theta - psi);
-            ptsx_car.push_back(x_car);
-            ptsy_car.push_back(y_car);
+            pts_x_car(i) = x_car;
+            pts_y_car(i) = y_car;
           }
-          double steer_value = 0;
-          double throttle_value = 0.1;
+
+          auto coeffs = polyfit(pts_x_car, pts_y_car, 2);
+
+          double cte = polyeval(coeffs, px) - py;
+          double epsi = psi - atan(coeffs[1]);
+
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+
+          auto vars = mpc.Solve(state, coeffs);
+
+//          double throttle_value = 0.1;
+          double throttle_value = vars[0];
+//          double steer_value = 0;
+          double steer_value = vars[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value;
+          msgJson["steering_angle"] = steer_value / deg2rad(25);
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
+          //Display the MPC predicted trajectory
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
@@ -136,11 +147,15 @@ int main() {
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals = ptsx_car;
-          vector<double> next_y_vals = ptsy_car;
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+          for (int i = 0; i < pts_x_car.size(); ++i) {
+            next_x_vals.push_back(pts_x_car(i));
+            next_y_vals.push_back(pts_y_car(i));
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
