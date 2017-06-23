@@ -41,6 +41,10 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+double square(double x) {
+  return x * x;
+}
+
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -89,7 +93,7 @@ int main() {
           vector<double> ptsy = j[1]["ptsy"];
           double px = j[1]["x"];
           double py = j[1]["y"];
-          double psi = j[1]["psi"];
+          double psi = j[1]["psi"]; // [0, 2*PI]
           double v = j[1]["speed"];
 
           /*
@@ -98,8 +102,22 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+          vector<double> ptsx_car;
+          vector<double> ptsy_car;
+
+          for (int i = 0; i < ptsx.size(); ++i) {
+            double x_diff = (ptsx[i] - px);
+            double y_diff = (ptsy[i] - py);
+            double mag = sqrt(square(ptsx[i] - px) + square(ptsy[i] - py));
+            double theta = atan2(ptsy[i] - py, ptsx[i] - px);
+
+            double x_car = mag * cos(theta - psi);
+            double y_car = mag * sin(theta - psi);
+            ptsx_car.push_back(x_car);
+            ptsy_car.push_back(y_car);
+          }
+          double steer_value = 0;
+          double throttle_value = 0.1;
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -118,8 +136,8 @@ int main() {
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals = ptsx_car;
+          vector<double> next_y_vals = ptsy_car;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
