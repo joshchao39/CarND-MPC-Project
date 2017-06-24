@@ -94,18 +94,17 @@ int main() {
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"]; // [0, 2*PI]
-          double v = j[1]["speed"];
-
+          double v_mph = j[1]["speed"]; // meter/second
+          double v = v_mph * 0.44704;
+          double angle = j[1]["steering_angle"];
           /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
+          * Calculate steering angle and throttle using MPC.
           * Both are in between [-1, 1].
-          *
           */
           Eigen::VectorXd pts_x_car(ptsx.size());
           Eigen::VectorXd pts_y_car(ptsy.size());
 
-          for (int i = 0; i < ptsx.size(); ++i) {
+          for (size_t i = 0; i < ptsx.size(); ++i) {
             double mag = sqrt(square(ptsx[i] - px) + square(ptsy[i] - py));
             double theta = atan2(ptsy[i] - py, ptsx[i] - px);
 
@@ -115,13 +114,15 @@ int main() {
             pts_y_car(i) = y_car;
           }
 
-          auto coeffs = polyfit(pts_x_car, pts_y_car, 2);
-
-          double cte = polyeval(coeffs, 0) - 0;
-          double epsi = 0 - atan(coeffs[1]);
-
+          auto coeffs = polyfit(pts_x_car, pts_y_car, 3);
           Eigen::VectorXd state(6);
-          state << 0, 0, 0, v * 0.44704, cte, epsi;
+
+          double psi_future = -v * angle / Lf * latency;
+          double x_future = v * latency;
+          double y_future = 0;
+          double cte_future = polyeval(coeffs, x_future);
+          double epsi_future = psi_future - atan(coeffs[1] + 2 * x_future * coeffs[2] + 3 * x_future * x_future * coeffs[3]);
+          state << x_future, y_future, psi_future, v, cte_future, epsi_future;
 
           auto solutions = mpc.Solve(state, coeffs);
 
@@ -140,7 +141,7 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-          for (int t = 0; t < N; ++t) {
+          for (size_t t = 0; t < N; ++t) {
             mpc_x_vals.push_back(solutions[x_start + t]);
             mpc_y_vals.push_back(solutions[y_start + t]);
           }
@@ -174,7 +175,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(0));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
