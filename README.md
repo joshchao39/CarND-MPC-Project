@@ -39,10 +39,41 @@ The core idea of model predictive control (MPC) is to leverage the knowledge of 
 The extend of future to be optimized is being controlled by time step **dt** and number of time steps **N**.
 
 ####Optimization
-**Ipopt** is used to minimize the cost using the actuations under the constraint of vehicle dynamics and actuation limits in the finite time-horizon.
+**Ipopt** is used to minimize the cost using the actuation under the constraint of vehicle dynamics and actuation limits in the finite time-horizon.
 
 ## Hyper-parameters Tuning
 
+####Cost Factor
+As different cost items have different units, the proportion of each cost item need to be adjust so one does not overwhelm another. Also the factor can be adjusted to achieve the desire driving behavior (sporty/smooth/etc.).
+
+The followings are the cost magnification factor:
+- **Orientation Error**: The orientation error is magnified **400** times as at high speed small orientation error leads to large CTE in short amount of time causing instability.
+- **Steering amount**: The steering amount is magnified **100** times to avoid using large steering unless necessary as large steering carries higher risk to go off track.
+- **Steering delta**: The steering delta is magnified **1000** times as erratic steering can upset the vehicle and causes fish-tailing.
+- **Throttle/Brake delta**: Throttle/brake delta is **removed** as we want to brake/throttle as hard as we can into/out of the corner to carry the max speed around the track. 
+- The rest of cost items are left unchanged.
+
+####Time Horizon
+Tuning N and dt allows us to determine how far to look ahead and how much resolution to use in the optimization calculation.
+- **Length of future prediction**: This controls the trade-off between long term and short term cost. For example the car should not sacrifice stability for turns that are more than a few seconds away, but at high speed there is a need to anticipate braking time before a sharp turn occurs.
+- **Resolution of future prediction**: This controls the trade-off between coping with fast changing events and computation power required. In this particular track curves happen rather smoothly while delay in response can cause tracking instability, so lower resolution is preferred. However in places where frequent actuation is required (Moose Test, Slalom) we would want to spend more computation power to obtain higher resolution in the predicted path.
+
+**N=10** and **dt=0.1** are used to plan only for 1 second ahead and keep response latency low. 
+
+## Other Features/Enhancements
+####Mapping world coordinates to Vehicle coordinates
+The model works off the vehicle coordinate while the simulator returns in world coordinate. It is necessary to map each way point for the model to consume. The equation I derived (**Trigonometry!**):
+![coordinate](coordinate.jpg "Mapping coordinates")
+
+####Coping with latency
+To cope with 100ms latency, we can treat the initial state as if it is **100ms later** according to the vehicle dynamics we have. To keep the equation simple I made two assumptions:
+1. The steering angle has little effect on the x and y position in such short amount of time.
+2. The acceleration has little effect on the speed of the vehicle in such short amount of time (after all we don't know the mass of the car and power/brake output of the car to calculation actual acceleration).
+
+So the initial car location becomes **(v * latency, 0)** and psi, cte, and epsi can be calculated from there. 
+
+####Braking before corner
+Even though the tire seems to have **infinite amount of traction**, the car is least stable around the curve so to achieve high speed it is necessary to slow down before the curve. To anticipate curve I calculate the slope from the coefficients 60 meters ahead and lower the target speed accordingly.
 
 
 ## Example
@@ -53,4 +84,6 @@ The extend of future to be optimized is being controlled by time step **dt** and
 Full video can be found [here](https://youtu.be/BIWhmaCRS7Q)
 
 ## Other Notes
-
+1. The better we can incorporate the vehicle dynamics the better the MPC works. In real world situation we would want to get all the dynamics right down to things such as air resistance and steering delay due to suspension.
+2. There is limit using parametric equation to model the desired path. For example curves like J turn can be hard to model using polynomial. We can store way points directly and use interpolation for better accuracy at the cost of higher computation power.
+3. Hyper parameter tuning can be done using numeric optimization technique to achieve better vehicle behavior.
