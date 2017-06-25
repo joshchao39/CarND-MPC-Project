@@ -27,10 +27,8 @@ class FG_eval {
     double curve = fabs(CppAD::atan(coeffs[1] + 2 * coeffs[2] * look_ahead + 3 * coeffs[3] * look_ahead * look_ahead));
     double factor = curve / 2.5 + 1;
 
-    // Reference State Cost
-    // Define the cost related the reference state and
-    // any anything you think may be beneficial.
-    // The part of the cost based on the reference state.
+    // Define the cost
+    // Minimize state error
     for (size_t t = 0; t < N; t++) {
       fg[0] += CppAD::pow(vars[cte_start + t], 2);
       fg[0] += 400 * CppAD::pow(vars[epsi_start + t], 2);
@@ -51,7 +49,6 @@ class FG_eval {
     //
     // Setup Constraints
     //
-    // NOTE: In this section you'll setup the model constraints.
 
     // Initial constraints
     //
@@ -89,14 +86,13 @@ class FG_eval {
       AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * x0 * x0);
 
 
-      // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
       //
       // NOTE: The use of `AD<double>` and use of `CppAD`!
       // This is also CppAD can compute derivatives and pass
       // these to the solver.
 
-      // Setup the rest of the model constraints
+      // Setup the model constraints
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
@@ -159,14 +155,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // The upper and lower limits of delta are set to -25 and 25
   // degrees (values in radians).
-  // NOTE: Feel free to change this to something else.
   for (size_t i = delta_start; i < a_start; i++) {
     vars_lowerbound[i] = -0.436332;
     vars_upperbound[i] = 0.436332;
   }
 
   // Acceleration/decceleration upper and lower limits.
-  // NOTE: Feel free to change this to something else.
   for (size_t i = a_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
@@ -198,9 +192,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   FG_eval fg_eval(coeffs);
 
   //
-  // NOTE: You don't have to worry about these options
+  // Options for IPOPT solver
   //
-  // options for IPOPT solver
   std::string options;
   // Uncomment this if you'd like more print information
   options += "Integer print_level  0\n";
@@ -230,12 +223,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-  // Return the first actuator values. The variables can be accessed with
-  // `solution.x[i]`.
-  //
-  // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
-  // creates a 2 element double vector.
-
+  // Return the solution
   vector<double> solution_vector;
   for (size_t i = 0; i < solution.x.size(); ++i) {
     solution_vector.push_back(solution.x[i]);
